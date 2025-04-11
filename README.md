@@ -82,6 +82,17 @@ cloud-dms-backend/
 
 ---
 
+## 🚀 Deployment Note (Optional)
+
+This backend is hosted on an AWS EC2 instance (Ubuntu). If deploying to the cloud, make sure:
+
+- ✅ The EC2 instance has an attached IAM role with permissions for **S3** and **RDS**
+- ✅ The instance has **AWS CLI installed** (`aws --version`)
+- ✅ The `.env` file is properly configured on the host, or use AWS Systems Manager Parameter Store for secrets management
+- ✅ Port **5000** is open for external access (for Flask testing) or use **Nginx + Gunicorn** in production
+
+---
+
 ## 👤 Author
 
 **Osborn Tshedza**  
