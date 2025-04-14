@@ -97,5 +97,9 @@ This backend is hosted on an AWS EC2 instance (Ubuntu). If deploying to the clou
 
 **Osborn Tshedza**  
 Cloud / DevOps Engineering Student  
-🔗 [LinkedIn](#) | [Blog](#)
+
+## 🔗 Connect with Me & Explore More
+
+- 📝 [Read the Blog on Medium](https://medium.com/@tshedzanethathe/building-a-cloud-native-document-management-system-on-aws-my-first-real-world-project-8a3370d3a802)
+- 💼 [Connect on LinkedIn](https://www.linkedin.com/in/osborn-tshedza-nethathe-503679122/)
 
