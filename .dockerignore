@@ -1,0 +1,31 @@
+# Ignore Git and CI/CD files
+.git
+.github
+.gitignore
+
+# Ignore Python cache and compiled files
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Ignore local environment files
+.env
+*.env
+
+# Ignore logs and temp files
+*.log
+nohup.out
+
+# Ignore editor/OS system files
+.DS_Store
+*.swp
+*.swo
+
+# Ignore previous deployment artifacts
+cloud-dms-lambda.zip
+*.zip
+
+# Ignore random docs or test files
+example.pdf
+
