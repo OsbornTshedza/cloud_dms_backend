@@ -1,34 +1,32 @@
-name: Deploy Backend to Lambda via ECR
+name: Build and Deploy Backend to Lambda via ECR
 
 on:
   push:
     branches:
-      - main
+      - main  # Trigger workflow on push to main branch
 
 jobs:
   build-and-deploy:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-latest  # Use Ubuntu for building and pushing
 
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
 
-
       - name: Login to Amazon ECR
-        id: login-ecr
         uses: aws-actions/amazon-ecr-login@v2
+        with:
+          region: ${{ secrets.AWS_REGION }}
 
       - name: Build, tag, and push Docker image to ECR
-        env:
-          ECR_REGISTRY: ${{ secrets.ECR_REGISTRY }}
-          ECR_REPOSITORY: ${{ secrets.ECR_REPOSITORY }}
-          IMAGE_TAG: latest
         run: |
-          docker build -t $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG .
-          docker push $ECR_REGISTRY/$ECR_REPOSITORY:$IMAGE_TAG
+          docker build -t ${{ secrets.ECR_REPO_URI }}:latest .
+          docker push ${{ secrets.ECR_REPO_URI }}:latest
 
       - name: Update Lambda function to latest image
         run: |
           aws lambda update-function-code \
-            --function-name ${{ secrets.LAMBDA_FUNCTION_NAME }} \
-            --image-uri ${{ secrets.ECR_REGISTRY }}/${{ secrets.ECR_REPOSITORY }}:latest
+            --function-name cloud-dms-backend-lambda \
+            --image-uri ${{ secrets.ECR_REPO_URI }}:latest \
+            --region ${{ secrets.AWS_REGION }}
+
