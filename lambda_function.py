@@ -43,8 +43,8 @@ def get_db_connection():
 @app.after_request
 def apply_cors_headers(response):
     response.headers["Access-Control-Allow-Origin"] = "*"
-    response.headers["Access-Control-Allow-Methods"] = "GET, POST, DELETE"
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type"
+    response.headers["Access-Control-Allow-Methods"] = "GET, POST, PUT, DELETE, OPTIONS"
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     return response
 
 # ---------------- Routes ----------------
@@ -200,6 +200,18 @@ def lambda_handler(event, context):
     print("🔍 Lambda handler invoked!")
     print("Event:", event)
 
+    # Preflight CORS OPTIONS request shortcut
+    if event.get("httpMethod") == "OPTIONS":
+        return {
+            "statusCode": 200,
+            "headers": {
+                "Access-Control-Allow-Origin": "*",
+                "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
+                "Access-Control-Allow-Headers": "Content-Type, Authorization",
+            },
+            "body": ""
+        }
+
     # Patch for HTTP API v2
     if 'http' in event.get('requestContext', {}):
         event['httpMethod'] = event['requestContext']['http']['method']
@@ -216,6 +228,7 @@ def lambda_handler(event, context):
             event['queryStringParameters'] = parsed_query
 
     return awsgi2.response(app, event, context, base64_content_types={"image/png", "application/pdf"})
+
 
 
 # ---------------- Local Dev Server (Optional) ----------------
