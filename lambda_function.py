@@ -131,14 +131,13 @@ def get_files():
                 )
                 file_urls.append({"name": file_name, "url": presigned_url})
             except Exception as url_err:
-                print(f"Failed to generate URL for {file_name}: {url_err}")
+                print(f"⚠️ Failed to generate URL for {file_name}: {url_err}")
         
+        print("✅ /files listing completed.")
         return jsonify({"files": file_urls})
-
     except Exception as e:
-        print(f"❌ S3 list error: {str(e)}")
+        print(f"❌ S3 list error: {e}")
         return jsonify({"error": "Failed to list files", "details": str(e)}), 500
-
 
 @app.route("/indexed-documents", methods=["GET"])
 def indexed_documents():
