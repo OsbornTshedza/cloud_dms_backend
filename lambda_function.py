@@ -117,22 +117,28 @@ def upload_file():
 @app.route("/files", methods=["GET"])
 def get_files():
     try:
-        response = s3.list_objects_v2(Bucket=S3_BUCKET)
+        response = s3.list_objects_v2(Bucket=S3_BUCKET, MaxKeys=30)
         files = response.get("Contents", [])
         file_urls = []
 
         for file in files:
             file_name = file["Key"]
-            presigned_url = s3.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": S3_BUCKET, "Key": file_name},
-                ExpiresIn=3600
-            )
-            file_urls.append({"name": file_name, "url": presigned_url})
-
+            try:
+                presigned_url = s3.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": S3_BUCKET, "Key": file_name},
+                    ExpiresIn=3600
+                )
+                file_urls.append({"name": file_name, "url": presigned_url})
+            except Exception as url_err:
+                print(f"Failed to generate URL for {file_name}: {url_err}")
+        
         return jsonify({"files": file_urls})
+
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        print(f"❌ S3 list error: {str(e)}")
+        return jsonify({"error": "Failed to list files", "details": str(e)}), 500
+
 
 @app.route("/indexed-documents", methods=["GET"])
 def indexed_documents():
