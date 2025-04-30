@@ -27,8 +27,7 @@ S3_REGION = os.getenv("S3_REGION")
 
 # ---------------- Clients ----------------
 s3_config = Config(connect_timeout=5, read_timeout=10)
-s3 = boto3.client("s3", region_name=S3_REGION)
-
+s3 = boto3.client("s3", region_name=S3_REGION, config=s3_config)
 # ---------------- DB Connection ----------------
 def get_db_connection():
     return pymysql.connect(
