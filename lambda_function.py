@@ -118,29 +118,41 @@ def get_files():
     print("📦 /files route hit — attempting to list S3 contents...")
 
     try:
-        response = s3.list_objects_v2(Bucket=S3_BUCKET, MaxKeys=100)
-        print("✅ S3 list response received")
+        # Use the configured S3 client with timeout-safe settings
+        s3_client = boto3.client("s3", region_name=S3_REGION, config=s3_config)
+        
+        response = s3_client.list_objects_v2(Bucket=S3_BUCKET, MaxKeys=100)
+        print("✅ S3 list_objects_v2 response received")
 
         files = response.get("Contents", [])
-        file_urls = []
+        if not files:
+            print("⚠️ No files found in bucket")
+            return jsonify({"files": []})
 
+        file_urls = []
         for file in files:
             file_name = file["Key"]
             print(f"🔗 Generating presigned URL for: {file_name}")
-            presigned_url = s3.generate_presigned_url(
-                "get_object",
-                Params={"Bucket": S3_BUCKET, "Key": file_name},
-                ExpiresIn=3600
-            )
-            file_urls.append({"name": file_name, "url": presigned_url})
 
-        print("✅ Presigned URLs generated")
+            try:
+                presigned_url = s3_client.generate_presigned_url(
+                    "get_object",
+                    Params={"Bucket": S3_BUCKET, "Key": file_name},
+                    ExpiresIn=3600
+                )
+                file_urls.append({"name": file_name, "url": presigned_url})
+            except Exception as url_err:
+                print(f"⚠️ Failed to generate URL for {file_name}: {url_err}")
+
+        print("✅ Presigned URLs generation complete")
         return jsonify({"files": file_urls})
 
     except Exception as e:
         print(f"❌ /files route failed: {str(e)}")
-        return jsonify({"error": str(e)}), 500
-
+        return jsonify({
+            "error": "Failed to retrieve files",
+            "details": str(e)
+        }), 500
 
 @app.route("/indexed-documents", methods=["GET"])
 def indexed_documents():
