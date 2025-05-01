@@ -116,13 +116,13 @@ def upload_file():
 @app.route("/files", methods=["GET"])
 def get_files():
     print("📦 /files route hit — attempting to list S3 contents...")
-
     try:
-        # Use the configured S3 client with timeout-safe settings
-        s3_client = boto3.client("s3", region_name=S3_REGION, config=s3_config)
-        
-        response = s3_client.list_objects_v2(Bucket=S3_BUCKET, MaxKeys=100)
-        print("✅ S3 list_objects_v2 response received")
+        print(f"S3 Client Region: {S3_REGION}") # Log the region (using the global variable)
+        print(f"S3 Client Config: {s3._client_config}") # Log the client config (using the global client)
+
+        print("⏳ Calling s3.list_objects_v2...") # Log before the call
+        response = s3.list_objects_v2(Bucket=S3_BUCKET, MaxKeys=100)
+        print("✅ s3.list_objects_v2 call completed.") # Log after the call
 
         files = response.get("Contents", [])
         if not files:
@@ -133,9 +133,8 @@ def get_files():
         for file in files:
             file_name = file["Key"]
             print(f"🔗 Generating presigned URL for: {file_name}")
-
             try:
-                presigned_url = s3_client.generate_presigned_url(
+                presigned_url = s3.generate_presigned_url(
                     "get_object",
                     Params={"Bucket": S3_BUCKET, "Key": file_name},
                     ExpiresIn=3600
@@ -149,10 +148,7 @@ def get_files():
 
     except Exception as e:
         print(f"❌ /files route failed: {str(e)}")
-        return jsonify({
-            "error": "Failed to retrieve files",
-            "details": str(e)
-        }), 500
+        return jsonify({"error": "Failed to retrieve files", "details": str(e)}), 500
 
 @app.route("/indexed-documents", methods=["GET"])
 def indexed_documents():
