@@ -1,16 +1,13 @@
-"""
-Cloud DMS Lambda-compatible Flask app
-RESTful API backend for document management (S3 + RDS)
-"""
-
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, redirect
 import pymysql
 import boto3
 import os
 from flask_cors import CORS
 from dotenv import load_dotenv
-import awsgi2  # Lambda adapter
+import awsgi2
 from botocore.config import Config
+import base64
+import requests
 
 # ---------------- Flask App Setup ----------------
 app = Flask(__name__)
@@ -24,18 +21,15 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
 S3_BUCKET = os.getenv("S3_BUCKET")
 S3_REGION = os.getenv("S3_REGION")
+CLIENT_ID = os.getenv("COGNITO_CLIENT_ID")
+CLIENT_SECRET = os.getenv("COGNITO_CLIENT_SECRET")
+REDIRECT_URI = os.getenv("COGNITO_REDIRECT_URI")
+COGNITO_DOMAIN = os.getenv("COGNITO_DOMAIN")
 
 # ---------------- Clients ----------------
 s3_config = Config(connect_timeout=5, read_timeout=10)
+s3 = boto3.client("s3", region_name=S3_REGION, config=s3_config, endpoint_url="https://s3.us-east-1.amazonaws.com")
 
-s3 = boto3.client(
-    "s3",
-    region_name=S3_REGION,
-    config=s3_config,
-    endpoint_url="https://s3.us-east-1.amazonaws.com"  # <--- Explicitly set
-)
-
-# ---------------- DB Connection ----------------
 def get_db_connection():
     return pymysql.connect(
         host=DB_HOST,
@@ -44,7 +38,6 @@ def get_db_connection():
         database=DB_NAME,
         cursorclass=pymysql.cursors.DictCursor
     )
-# ---------------- CORS JS Resolver ---------
 
 @app.after_request
 def apply_cors_headers(response):
@@ -53,14 +46,48 @@ def apply_cors_headers(response):
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     return response
 
-# ---------------- Routes ----------------
+# ---------------- Cognito Routes ----------------
+
+@app.route("/login")
+def login():
+    auth_url = f"https://{COGNITO_DOMAIN}/oauth2/authorize"
+    return redirect(f"{auth_url}?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}")
+
+@app.route("/callback")
+def callback():
+    code = request.args.get("code")
+    if not code:
+        return jsonify({"error": "Authorization code missing"}), 400
+
+    token_url = f"https://{COGNITO_DOMAIN}/oauth2/token"
+    client_secret_encoded = base64.b64encode(f"{CLIENT_ID}:{CLIENT_SECRET}".encode()).decode()
+
+    headers = {
+        "Content-Type": "application/x-www-form-urlencoded",
+        "Authorization": f"Basic {client_secret_encoded}"
+    }
+
+    payload = {
+        "grant_type": "authorization_code",
+        "code": code,
+        "redirect_uri": REDIRECT_URI
+    }
+
+    try:
+        res = requests.post(token_url, data=payload, headers=headers)
+        res.raise_for_status()
+        return jsonify(res.json())
+    except requests.exceptions.RequestException as e:
+        return jsonify({"error": "Token exchange failed", "details": str(e)}), 500
+
+# ---------------- Health & Core Routes ----------------
 @app.route("/")
 def home():
-    return "✅ Cloud DMS (Lambda version) is running."
+    return "✅ Cloud DMS (Lambda version with Cognito) is running."
 
 @app.route("/health")
 def health():
-    return jsonify({"status": "ok", "version": "1.0.0"})
+    return jsonify({"status": "ok", "version": "2.0.0"})
 
 @app.route("/test-db")
 def test_db():
@@ -215,15 +242,12 @@ def delete_document(doc_id):
     except Exception as e:
         print(f"❌ Delete error: {str(e)}")
         return jsonify({"error": str(e)}), 500
- 
-
 
 # ---------------- Lambda Entry Point ----------------
 def lambda_handler(event, context):
     print("🔍 Lambda handler invoked!")
     print("Event:", event)
 
-    # Preflight CORS OPTIONS request shortcut
     if event.get("httpMethod") == "OPTIONS":
         return {
             "statusCode": 200,
@@ -235,7 +259,6 @@ def lambda_handler(event, context):
             "body": ""
         }
 
-    # Patch for HTTP API v2
     if 'http' in event.get('requestContext', {}):
         event['httpMethod'] = event['requestContext']['http']['method']
         event['path'] = event['requestContext']['http']['path']
@@ -252,8 +275,5 @@ def lambda_handler(event, context):
 
     return awsgi2.response(app, event, context, base64_content_types={"image/png", "application/pdf"})
 
-
-
-# ---------------- Local Dev Server (Optional) ----------------
 if __name__ == "__main__":
     app.run(debug=True, host="0.0.0.0", port=5000)
