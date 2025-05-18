@@ -8,6 +8,9 @@ import awsgi2
 from botocore.config import Config
 import base64
 import requests
+from urllib.parse import urlencode
+import secrets
+
 
 # ---------------- Flask App Setup ----------------
 app = Flask(__name__)
@@ -21,10 +24,14 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
 S3_BUCKET = os.getenv("S3_BUCKET")
 S3_REGION = os.getenv("S3_REGION")
+
+# Cognito
 CLIENT_ID = os.getenv("COGNITO_CLIENT_ID")
 CLIENT_SECRET = os.getenv("COGNITO_CLIENT_SECRET")
 REDIRECT_URI = os.getenv("COGNITO_REDIRECT_URI")
 COGNITO_DOMAIN = os.getenv("COGNITO_DOMAIN")
+TOKEN_URL = f"{COGNITO_DOMAIN}/oauth2/token"
+USERINFO_URL = f"{COGNITO_DOMAIN}/oauth2/userInfo"
 
 # ---------------- Clients ----------------
 s3_config = Config(connect_timeout=5, read_timeout=10)
@@ -50,35 +57,50 @@ def apply_cors_headers(response):
 
 @app.route("/login")
 def login():
-    auth_url = f"https://{COGNITO_DOMAIN}/oauth2/authorize"
-    return redirect(f"{auth_url}?response_type=code&client_id={CLIENT_ID}&redirect_uri={REDIRECT_URI}")
+    params = {
+        "client_id": CLIENT_ID,
+        "response_type": "code",
+        "scope": "openid email phone",
+        "redirect_uri": REDIRECT_URI,
+    }
+    return redirect(f"{COGNITO_DOMAIN}/oauth2/authorize?{urlencode(params)}")
+
+@app.route("/logout")
+def logout():
+    logout_url = f"{COGNITO_DOMAIN}/logout?client_id={CLIENT_ID}&logout_uri={REDIRECT_URI}"
+    return redirect(logout_url)
 
 @app.route("/callback")
 def callback():
     code = request.args.get("code")
     if not code:
-        return jsonify({"error": "Authorization code missing"}), 400
+        return jsonify({"error": "Missing authorization code"}), 400
 
-    token_url = f"https://{COGNITO_DOMAIN}/oauth2/token"
-    client_secret_encoded = base64.b64encode(f"{CLIENT_ID}:{CLIENT_SECRET}".encode()).decode()
-
-    headers = {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Authorization": f"Basic {client_secret_encoded}"
-    }
-
-    payload = {
+    auth = (CLIENT_ID, CLIENT_SECRET)
+    headers = { "Content-Type": "application/x-www-form-urlencoded" }
+    data = {
         "grant_type": "authorization_code",
+        "client_id": CLIENT_ID,
         "code": code,
         "redirect_uri": REDIRECT_URI
     }
 
     try:
-        res = requests.post(token_url, data=payload, headers=headers)
-        res.raise_for_status()
-        return jsonify(res.json())
-    except requests.exceptions.RequestException as e:
-        return jsonify({"error": "Token exchange failed", "details": str(e)}), 500
+        token_response = requests.post(TOKEN_URL, auth=auth, data=data, headers=headers)
+        token_response.raise_for_status()
+        tokens = token_response.json()
+
+        # Optional: retrieve user info
+        headers = { "Authorization": f"Bearer {tokens['access_token']}" }
+        user_info = requests.get(USERINFO_URL, headers=headers).json()
+
+        return jsonify({
+            "tokens": tokens,
+            "user_info": user_info
+        })
+
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
 
 # ---------------- Health & Core Routes ----------------
 @app.route("/")
