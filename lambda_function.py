@@ -28,8 +28,9 @@ S3_REGION = os.getenv("S3_REGION")
 # Cognito
 CLIENT_ID = os.getenv("COGNITO_CLIENT_ID")
 CLIENT_SECRET = os.getenv("COGNITO_CLIENT_SECRET")
-REDIRECT_URI = os.getenv("COGNITO_REDIRECT_URI")
 COGNITO_DOMAIN = os.getenv("COGNITO_DOMAIN")
+COGNITO_APP_CALLBACK_URL = os.getenv("COGNITO_APP_CALLBACK_URL")
+COGNITO_APP_LOGOUT_URL = os.getenv("COGNITO_APP_LOGOUT_URL")
 TOKEN_URL = f"{COGNITO_DOMAIN}/oauth2/token"
 USERINFO_URL = f"{COGNITO_DOMAIN}/oauth2/userInfo"
 
@@ -61,13 +62,13 @@ def login():
         "client_id": CLIENT_ID,
         "response_type": "code",
         "scope": "openid email phone",
-        "redirect_uri": REDIRECT_URI,
+        "redirect_uri": os.getenv("COGNITO_APP_CALLBACK_URL"),
     }
     return redirect(f"{COGNITO_DOMAIN}/oauth2/authorize?{urlencode(params)}")
 
 @app.route("/logout")
 def logout():
-    logout_url = f"{COGNITO_DOMAIN}/logout?client_id={CLIENT_ID}&logout_uri={REDIRECT_URI}"
+    logout_url = f"{os.getenv('COGNITO_DOMAIN')}/logout?client_id={os.getenv('CLIENT_ID')}&logout_uri={os.getenv('COGNITO_APP_LOGOUT_URL')}"
     return redirect(logout_url)
 
 @app.route("/callback")
@@ -82,7 +83,7 @@ def callback():
         "grant_type": "authorization_code",
         "client_id": CLIENT_ID,
         "code": code,
-        "redirect_uri": REDIRECT_URI
+        "redirect_uri": os.getenv("COGNITO_APP_CALLBACK_URL")
     }
 
     try:
