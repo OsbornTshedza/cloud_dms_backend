@@ -6,3 +6,5 @@ python-dotenv==1.0.1
 boto3==1.37.19
 PyMySQL==1.1.1
 requests
+authlib
+werkzeug

@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify, redirect
+from flask import Flask, redirect, url_for, session, request, jsonify
 import pymysql
 import boto3
 import os
@@ -8,9 +8,7 @@ import awsgi2
 from botocore.config import Config
 import base64
 import requests
-from urllib.parse import urlencode
-import secrets
-
+from authlib.integrations.flask_client import OAuth
 
 # ---------------- Flask App Setup ----------------
 app = Flask(__name__)
@@ -29,10 +27,17 @@ S3_REGION = os.getenv("S3_REGION")
 CLIENT_ID = os.getenv("COGNITO_CLIENT_ID")
 CLIENT_SECRET = os.getenv("COGNITO_CLIENT_SECRET")
 COGNITO_DOMAIN = os.getenv("COGNITO_DOMAIN")
-COGNITO_APP_CALLBACK_URL = os.getenv("COGNITO_APP_CALLBACK_URL")
-COGNITO_APP_LOGOUT_URL = os.getenv("COGNITO_APP_LOGOUT_URL")
-TOKEN_URL = f"{COGNITO_DOMAIN}/oauth2/token"
-USERINFO_URL = f"{COGNITO_DOMAIN}/oauth2/userInfo"
+REDIRECT_URI = os.getenv("COGNITO_APP_CALLBACK_URL")
+
+# Authlib OAuth Setup
+oauth = OAuth(app)
+oauth.register(
+    name='cognito',
+    client_id=CLIENT_ID,
+    client_secret=CLIENT_SECRET,
+    server_metadata_url=f'{COGNITO_DOMAIN}/.well-known/openid-configuration',
+    client_kwargs={'scope': 'openid email phone profile'},
+)
 
 # ---------------- Clients ----------------
 s3_config = Config(connect_timeout=5, read_timeout=10)
@@ -56,57 +61,32 @@ def apply_cors_headers(response):
 
 # ---------------- Cognito Routes ----------------
 
+@app.route("/")
+def index():
+    user = session.get("user")
+    if user:
+        return jsonify({"message": f"Welcome {user['email']}"})
+    else:
+        return jsonify({"message": "Welcome! Please /login."})
+
 @app.route("/login")
 def login():
-    params = {
-        "client_id": CLIENT_ID,
-        "response_type": "code",
-        "scope": "openid email phone",
-        "redirect_uri": os.getenv("COGNITO_APP_CALLBACK_URL"),
-    }
-    return redirect(f"{COGNITO_DOMAIN}/oauth2/authorize?{urlencode(params)}")
+    return oauth.cognito.authorize_redirect(redirect_uri=REDIRECT_URI)
+
+@app.route("/authorize")
+def authorize():
+    token = oauth.cognito.authorize_access_token()
+    user = oauth.cognito.parse_id_token(token)
+    session['user'] = user
+    return jsonify({"message": "Login successful", "user": user})
 
 @app.route("/logout")
 def logout():
-    logout_url = f"{os.getenv('COGNITO_DOMAIN')}/logout?client_id={os.getenv('CLIENT_ID')}&logout_uri={os.getenv('COGNITO_APP_LOGOUT_URL')}"
+    session.pop('user', None)
+    logout_url = f"{COGNITO_DOMAIN}/logout?client_id={CLIENT_ID}&logout_uri={REDIRECT_URI}"
     return redirect(logout_url)
 
-@app.route("/callback")
-def callback():
-    code = request.args.get("code")
-    if not code:
-        return jsonify({"error": "Missing authorization code"}), 400
-
-    auth = (CLIENT_ID, CLIENT_SECRET)
-    headers = { "Content-Type": "application/x-www-form-urlencoded" }
-    data = {
-        "grant_type": "authorization_code",
-        "client_id": CLIENT_ID,
-        "code": code,
-        "redirect_uri": os.getenv("COGNITO_APP_CALLBACK_URL")
-    }
-
-    try:
-        token_response = requests.post(TOKEN_URL, auth=auth, data=data, headers=headers)
-        token_response.raise_for_status()
-        tokens = token_response.json()
-
-        # Optional: retrieve user info
-        headers = { "Authorization": f"Bearer {tokens['access_token']}" }
-        user_info = requests.get(USERINFO_URL, headers=headers).json()
-
-        return jsonify({
-            "tokens": tokens,
-            "user_info": user_info
-        })
-
-    except Exception as e:
-        return jsonify({"error": str(e)}), 500
-
 # ---------------- Health & Core Routes ----------------
-@app.route("/")
-def home():
-    return "✅ Cloud DMS (Lambda version with Cognito) is running."
 
 @app.route("/health")
 def health():
