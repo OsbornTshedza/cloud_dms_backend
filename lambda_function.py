@@ -7,8 +7,6 @@ from dotenv import load_dotenv
 import awsgi2
 from botocore.config import Config
 import base64
-import requests
-from authlib.integrations.flask_client import OAuth
 
 # ---------------- Flask App Setup ----------------
 app = Flask(__name__)
@@ -22,22 +20,6 @@ DB_PASSWORD = os.getenv("DB_PASSWORD")
 DB_NAME = os.getenv("DB_NAME")
 S3_BUCKET = os.getenv("S3_BUCKET")
 S3_REGION = os.getenv("S3_REGION")
-
-# Cognito
-CLIENT_ID = os.getenv("COGNITO_CLIENT_ID")
-CLIENT_SECRET = os.getenv("COGNITO_CLIENT_SECRET")
-COGNITO_DOMAIN = os.getenv("COGNITO_DOMAIN")
-REDIRECT_URI = os.getenv("COGNITO_APP_CALLBACK_URL")
-
-# Authlib OAuth Setup
-oauth = OAuth(app)
-oauth.register(
-    name='cognito',
-    client_id=CLIENT_ID,
-    client_secret=CLIENT_SECRET,
-    server_metadata_url=f'{COGNITO_DOMAIN}/.well-known/openid-configuration',
-    client_kwargs={'scope': 'openid email phone profile'},
-)
 
 # ---------------- Clients ----------------
 s3_config = Config(connect_timeout=5, read_timeout=10)
@@ -59,34 +41,11 @@ def apply_cors_headers(response):
     response.headers["Access-Control-Allow-Headers"] = "Content-Type, Authorization"
     return response
 
-# ---------------- Cognito Routes ----------------
+# ---------------- Health & Core Routes ----------------
 
 @app.route("/")
-def index():
-    user = session.get("user")
-    if user:
-        return jsonify({"message": f"Welcome {user['email']}"})
-    else:
-        return jsonify({"message": "Welcome! Please /login."})
-
-@app.route("/login")
-def login():
-    return oauth.cognito.authorize_redirect(redirect_uri=REDIRECT_URI)
-
-@app.route("/authorize")
-def authorize():
-    token = oauth.cognito.authorize_access_token()
-    user = oauth.cognito.parse_id_token(token)
-    session['user'] = user
-    return jsonify({"message": "Login successful", "user": user})
-
-@app.route("/logout")
-def logout():
-    session.pop('user', None)
-    logout_url = f"{COGNITO_DOMAIN}/logout?client_id={CLIENT_ID}&logout_uri={REDIRECT_URI}"
-    return redirect(logout_url)
-
-# ---------------- Health & Core Routes ----------------
+def home():
+    return jsonify({"message": "Welcome to the Cloud DMS Backend API"})
 
 @app.route("/health")
 def health():
