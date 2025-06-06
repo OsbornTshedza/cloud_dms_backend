@@ -1,105 +1,159 @@
-# 📦 Cloud DMS Backend
+# 📦 FutureEd Cloud DMS – Backend (Phase 2)
 
-This is the backend service for the **Cloud-based Document Management System (DMS)** built using Flask, AWS S3, and RDS MySQL.
+This is the backend engine for the **FutureEd Hub, Cloud Document Management System**, built using Flask and deployed as a container to **AWS Lambda** via **ECR**, behind a RESTful **API Gateway**.
 
----
-
-## 🛠️ Tech Stack
-
-- **Python 3 / Flask**
-- **AWS S3** – File storage
-- **RDS (MySQL)** – Metadata storage
-- **Boto3** – AWS SDK
-- **pymysql** – MySQL connector
-- **Flask-CORS** – Cross-origin requests support
+It powers secure document uploads, metadata indexing via RDS, and exposes API endpoints consumed by the frontend. Built with FinOps, observability, and DevOps culture in mind.
 
 ---
 
-## 📁 Folder Structure
+## 🔧 Tech Stack & AWS Services Used
 
-```
+- **Flask** + `awsgi2` (for Lambda routing)
+- **AWS Lambda** (containerized backend)
+- **API Gateway (REST API)** (public endpoint)
+- **Amazon S3** (private doc storage)
+- **Amazon RDS (MySQL)** (indexed metadata)
+- **Amazon ECR** (container registry)
+- **GitHub Actions** (CI/CD pipelines)
+- **Slack + SNS + CloudWatch** (alerts + logs)
+
+---
+
+## 📂 Folder Structure
+
 cloud-dms-backend/
-├── app.py                 # Main Flask API
-├── .env                  # Environment variables (ignored in git)
-├── venv/                 # Virtual environment (ignored)
-├── __pycache__/          # Python cache (ignored)
-├── aws/                  # AWS CLI installer/resources (ignored)
-└── requirements.txt      # Python dependencies (optional)
+
+├── .github/workflows/        # CI/CD pipeline (deploy.yml)
+
+├── lambda_function.py        # Flask + awsgi Lambda handler
+
+├── requirements.txt          # Python dependencies
+
+├── Dockerfile                # Lambda container definition
+
+├── .gitignore, .dockerignore
+
+└── README.md
+
+---
+
+## ⚙️ Setup Instructions (Local Testing)
+
+> Note: Backend is designed for containerized deployment via Lambda, not local Flask dev.
+> 
+
+### 📥 1. Clone the Repo
+
+```bash
+git clone <https://github.com/your-username/cloud_dms_backend.git>
+cd cloud_dms_backend
+
 ```
 
----
+### 📦 2. Build Docker Container (optional)
 
-## ⚙️ Environment Setup
+docker build -t cloud-dms-backend .
 
-1. **Clone the repo:**
+### ⚙️ 3. Environment Variables (for Lambda)
 
-   ```bash
-   git clone git@github.com:OsbornTshedza/cloud_dms_backend.git
-   cd cloud_dms_backend
-   ```
+Add to Lambda > Configuration > Environment Variables:
 
-2. **Create virtual environment:**
-
-   ```bash
-   python3 -m venv venv
-   source venv/bin/activate
-   ```
-
-3. **Install dependencies:**
-
-   ```bash
-   pip install -r requirements.txt
-   ```
-
-4. **Set up `.env` file:**
-
-   ```env
-   DB_HOST=your-db-host
-   DB_USER=admin
-   DB_PASSWORD=your-password
-   DB_NAME=cloud_dms
-   ```
+- `RDS_HOST`
+- `RDS_USER`
+- `RDS_PASSWORD`
+- `RDS_DB_NAME`
+- `S3_BUCKET_NAME`
 
 ---
 
-## 🔌 API Routes
+## 🔐 GitHub Secrets Used (CI/CD)
 
-| Method | Route           | Description                            |
-|--------|------------------|----------------------------------------|
-| GET    | `/`              | Health check                           |
-| GET    | `/test-db`       | Tests DB connection                    |
-| GET    | `/files`         | Lists S3 files with presigned URLs     |
-| GET    | `/documents`     | Returns indexed metadata               |
-| POST   | `/upload`        | Uploads file to S3 and indexes in RDS  |
-
----
-
-## 💬 Coming Soon (Phase 2 & 3)
-
-- ✅ API Gateway + Lambda Integration  
-- ✅ Advanced search & tagging (AI/ML)  
-- ✅ CI/CD pipeline (GitHub Actions + Terraform)
+| Secret Key | Used For |
+| --- | --- |
+| `AWS_ACCESS_KEY_ID` | GitHub Actions IAM user |
+| `AWS_SECRET_ACCESS_KEY` | IAM user credentials |
+| `AWS_REGION` | AWS region |
+| `ECR_REPOSITORY` | For backend container push |
+| `LAMBDA_FUNCTION_NAME` | To update Lambda via Actions |
 
 ---
 
-## 🚀 Deployment Note (Optional)
+## 🚀 Deployment Process (CI/CD Flow)
 
-This backend is hosted on an AWS EC2 instance (Ubuntu). If deploying to the cloud, make sure:
+> Automated via GitHub Actions (.github/workflows/deploy.yml)
+> 
 
-- ✅ The EC2 instance has an attached IAM role with permissions for **S3** and **RDS**
-- ✅ The instance has **AWS CLI installed** (`aws --version`)
-- ✅ The `.env` file is properly configured on the host, or use AWS Systems Manager Parameter Store for secrets management
-- ✅ Port **5000** is open for external access (for Flask testing) or use **Nginx + Gunicorn** in production
+### 🔄 Pipeline Summary:
+
+1. Authenticate to AWS
+2. Build & tag Docker image
+3. Push image to ECR
+4. Update Lambda function
+5. Notify via Slack on success/failure
 
 ---
 
-## 👤 Author
+## 🧪 API Routes
 
-**Osborn Tshedza**  
-Cloud / DevOps Engineering Student  
+| Route | Method | Description |
+| --- | --- | --- |
+| `/files` | `GET` | Lists files from S3 with presigned URLs |
+| `/upload` | `POST` | Uploads a new file and stores metadata |
+| `/documents` | `GET` | Fetches document metadata from RDS |
+| `/test-db` | `GET` | Tests DB connectivity |
+| `/` | `GET` | Basic health check |
 
-## 🔗 Connect with Me & Explore More
+---
 
-- 📝 [Read the Blog on Medium](https://medium.com/@tshedzanethathe/building-a-cloud-native-document-management-system-on-aws-my-first-real-world-project-8a3370d3a802)
+## 🧭 Monitoring & Alerts
+
+- **CloudWatch Logs**: all Lambda logs
+- **Metric Filters**: scans for `"ERROR"` or `"Task timed out"`
+- **CloudWatch Alarms**: triggers SNS topic
+- **SNS Topic**: notifies via email 
+- **Slack Notifications**: real-time updates for CICD deployment success/failure
+
+---
+
+## 🔒 Security Summary
+
+- **IAM Roles**: scoped per function (S3, RDS, Lambda)
+- **S3 Bucket Policy**: trust-based access via `aws:SourceArn`
+- **Lambda inside VPC**: for secure RDS access
+- **RDS Security Group**: inbound only from Lambda SG
+- **No secrets in code**: all handled via GitHub Secrets + Lambda env vars
+
+---
+
+## ✅ Phase 2 Takeaways
+
+- Reduced idle costs by replacing EC2 with containerized Lambda
+- Improved developer workflow with GitHub Actions CI/CD
+- Enabled observability with CloudWatch + Slack alerts
+- Designed a scalable, modular backend foundation
+- Built with Well-Architected + Cloud Adoption Frameworks in mind
+
+---
+
+## 🔮 What’s Next (Phase 3)
+
+- 🔍 OpenSearch + AI-powered document indexing
+- 🧠 SageMaker / Bedrock for document classification
+- 🧱 API Gateway JWT authorizers
+- 🛡️ WAF, CloudTrail, S3 access logs for compliance
+
+---
+
+## **👤 Author**
+
+### **Osborn Tshedza**
+
+Cloud / DevOps Engineer In Training.
+
+## 🔗 Connect with Me & Lets Collaborate
+
+- 📝 [Read the Blog on Medium]
 - 💼 [Connect on LinkedIn](https://www.linkedin.com/in/osborn-tshedza-nethathe-503679122/)
 
+📜 License
+MIT License – see LICENSE file.
